@@ -24,9 +24,17 @@ class Line::IncomingMessageService
     params[:events].each do |event|
       next unless message_created? event
 
+      update_reply_token(event['replyToken'])
       attach_files event['message']
       @message.save!
     end
+  end
+
+  def update_reply_token(reply_token)
+    return if reply_token.blank?
+
+    new_attrs = @conversation.additional_attributes.merge('line_reply_token' => reply_token)
+    @conversation.update!(additional_attributes: new_attrs)
   end
 
   def message_created?(event)

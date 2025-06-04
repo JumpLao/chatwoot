@@ -6,19 +6,28 @@ class Line::SendOnLineService < Base::SendOnChannelService
   end
 
   def perform_reply
-    response = channel.client.push_message(message.conversation.contact_inbox.source_id, build_payload)
+    response = send_using_reply_token
+    response ||= channel.client.push_message(message.conversation.contact_inbox.source_id, build_payload)
 
     return if response.blank?
 
     parsed_json = JSON.parse(response.body)
 
     if response.code == '200'
-      # If the request is successful, update the message status to delivered
       Messages::StatusUpdateService.new(message, 'delivered').perform
     else
-      # If the request is not successful, update the message status to failed and save the external error
       Messages::StatusUpdateService.new(message, 'failed', external_error(parsed_json)).perform
     end
+  end
+
+  def send_using_reply_token
+    token = message.conversation.additional_attributes['line_reply_token']
+    return if token.blank?
+
+    response = channel.client.reply_message(token, build_payload)
+    return unless response.code == '200'
+
+    response
   end
 
   def build_payload
