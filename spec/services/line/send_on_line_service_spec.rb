@@ -13,7 +13,26 @@ describe Line::SendOnLineService do
       allow(Line::Bot::Client).to receive(:new).and_return(line_client)
     end
 
-    context 'when message send' do
+    context 'when message send with reply token' do
+      before do
+        message.conversation.update!(additional_attributes: { 'line_reply_token' => 'replytoken' })
+      end
+
+      it 'calls @channel.client.reply_message' do
+        allow(line_client).to receive(:reply_message).and_return(OpenStruct.new(code: '200', body: '{}'))
+        expect(line_client).to receive(:reply_message).with('replytoken', anything)
+        described_class.new(message: message).perform
+      end
+
+      it 'falls back to push_message when reply fails' do
+        allow(line_client).to receive(:reply_message).and_return(OpenStruct.new(code: '400', body: '{}'))
+        allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: '{}'))
+        expect(line_client).to receive(:push_message)
+        described_class.new(message: message).perform
+      end
+    end
+
+    context 'when message send without reply token' do
       it 'calls @channel.client.push_message' do
         allow(line_client).to receive(:push_message)
         expect(line_client).to receive(:push_message)
